@@ -7,17 +7,18 @@ const tg = window.Telegram?.WebApp;
 
 try {
   if (tg) {
-    tg.ready();
+  tg.ready();
 
-    // Жёстко задаём непрозрачный фон и цвет хедера
-    const bg = tg.themeParams?.bg_color || '#0f1115';
-    tg.setBackgroundColor(bg);
-    tg.setHeaderColor('secondary_bg_color');
+  // Жёстко: сплошной фон и шапка (hex, без альфы)
+  tg.setBackgroundColor('#0f1115');      // фон webview
+  tg.setHeaderColor('#171a21');          // цвет заголовка (вместо 'secondary_bg_color')
 
-    tg.expand?.();
-    tg.disableVerticalSwipes?.();
-    dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
-  } else {
+  tg.expand?.();
+  tg.disableVerticalSwipes?.();
+
+  dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
+}
+ else {
     dbg('tg = undefined (SDK не подхватился)');
   }
 } catch (e) {
