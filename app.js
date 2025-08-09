@@ -14,6 +14,8 @@ const els = {
   tasks: byId('tasks-list'),
   addClient: byId('add-demo-client'),
   addTask: byId('add-demo-task'),
+  cryptoList: byId('crypto-list'),
+  cryptoRefresh: byId('refresh-crypto'),
 };
 const dbgBox = byId('dbg');
 const dbg = (m) => { if (dbgBox) dbgBox.textContent = String(m); console.log('[DBG]', m); };
@@ -99,7 +101,7 @@ async function auth(){
     const res = await api('/api/auth/telegram', { method:'POST', body: JSON.stringify({ initData }) });
     if(res.ok && res.token){
       TOKEN = res.token; localStorage.setItem('pb_token', TOKEN);
-      setStatus('Готово: авторизация успешна', 'ok');
+      setStatus('Готово: авторизация по токену', 'ok');
       els.userId.textContent = res.user?.id ? `User ID: ${res.user.id}` : '';
       setHelp('');
       return true;
@@ -126,12 +128,47 @@ async function loadAll(){
   }
 }
 
+/* ── CRYPTO ─────────────────────────────────────────── */
+function renderCrypto(list=[]){
+  els.cryptoList.innerHTML = list.length
+    ? list.map(c => {
+        const chg = Number(c.price_change_percentage_24h || 0);
+        const cls = chg >= 0 ? 'chg-up' : 'chg-down';
+        const pct = (chg>=0?'+':'') + chg.toFixed(2) + '%';
+        return `
+          <div class="item">
+            <div class="coin">
+              <img src="${c.image}" alt="${escapeHtml(c.symbol)}"/>
+              <div class="item__title">${escapeHtml(c.name)} <span class="muted">(${escapeHtml(c.symbol.toUpperCase())})</span></div>
+            </div>
+            <div class="item__row">
+              <span class="pill">${Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(c.current_price)}</span>
+              <span class="pill ${cls}">${pct}</span>
+              <span class="muted">MC Cap: ${Intl.NumberFormat('en-US',{notation:'compact'}).format(c.market_cap || 0)}</span>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div class="muted">Нет данных. Нажмите «Обновить».</div>`;
+}
+async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
+  try{
+    const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
+    const data = await api(q);
+    renderCrypto(data || []);
+  }catch(e){
+    console.error(e);
+    els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок.</div>`;
+  }
+}
+/* ───────────────────────────────────────────────────── */
+
 async function addDemoClient(){ await api('/api/crm/clients', { method:'POST', body: JSON.stringify({ company:'Acme Corp', stage:'Negotiation', owner:'Мария', amount:24000 }) }); await loadAll(); }
 async function addDemoTask(){ await api('/api/tasks', { method:'POST', body: JSON.stringify({ title:'Позвонить Acme', tag:'sales', due:'Сегодня', status:'inprogress' }) }); await loadAll(); }
 
 function wire(){
   els.addClient?.addEventListener('click', addDemoClient);
   els.addTask?.addEventListener('click', addDemoTask);
+  els.cryptoRefresh?.addEventListener('click', () => loadCrypto());
 }
 
 async function boot(){
@@ -139,6 +176,11 @@ async function boot(){
     if(tg){
       tg.ready(); tg.setBackgroundColor?.('#0f1115'); tg.setHeaderColor?.('#171a21');
       tg.expand?.(); tg.disableVerticalSwipes?.();
+      if (tg.platform === 'tdesktop') {
+        const r = document.documentElement.style;
+        r.setProperty('--bg','#0f1115'); r.setProperty('--card','#171a21'); r.setProperty('--text','#e8ecf1');
+        r.setProperty('--muted','#99a2b1'); r.setProperty('--accent','#3b82f6'); r.setProperty('--accent-text','#fff'); r.setProperty('--border','rgba(255,255,255,.12)');
+      }
       dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
     }else{ dbg('tg = undefined (SDK не подхватился)'); }
   }catch(e){ dbg('tg error: ' + String(e)); }
@@ -147,13 +189,12 @@ async function boot(){
 
   if(TOKEN){
     setStatus('Проверка сессии…');
-    try{ await loadAll(); setStatus('Готово: авторизация по токену', 'ok'); return; }
+    try{ await loadAll(); await loadCrypto(); setStatus('Готово: авторизация по токену', 'ok'); return; }
     catch{ localStorage.removeItem('pb_token'); TOKEN=''; }
   }
 
   const ok = await auth();
-  if(ok) await loadAll();
+  if(ok){ await loadAll(); await loadCrypto(); }
 }
 
 boot();
-
