@@ -1,15 +1,19 @@
 // ====== НАСТРОЙКА ======
 const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // <-- ПОМЕНЯЙ на свой воркер!
 // =======================
-
 const tg = window.Telegram?.WebApp;
-const $  = (sel) => document.querySelector(sel);
-const dbg = (t) => { const el = document.getElementById('dbg'); if (el) el.textContent = t; };
 
-// Инициализируем Telegram WebApp и показываем мини-диагностику
+// ...
+
 try {
   if (tg) {
     tg.ready();
+
+    // Жёстко задаём непрозрачный фон и цвет хедера
+    const bg = tg.themeParams?.bg_color || '#0f1115';
+    tg.setBackgroundColor(bg);
+    tg.setHeaderColor('secondary_bg_color');
+
     tg.expand?.();
     tg.disableVerticalSwipes?.();
     dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
