@@ -26,17 +26,13 @@
     #dbg{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.5);color:#9aa6b2;font:12px/1.2 system-ui;padding:6px 8px;border:1px solid #232734;border-radius:8px;z-index:9999}
     .coin{display:flex;gap:10px;align-items:center}
     .coin img{width:20px;height:20px;border-radius:50%;object-fit:cover}
-    .avatar{
-      width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
-      font-weight:700;font-size:11px;color:#fff;background:#475569;
-    }
+    .avatar{width:20px;height:20px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;background:#475569}
     .avatar[data-sym="BTC"]{background:#f7931a}.avatar[data-sym="ETH"]{background:#627eea}.avatar[data-sym="TON"]{background:#0098ea}
 
     /* inputs */
     .inputs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .input,.select{background:#0e1117;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
-    .input{width:140px}
-    .select{min-width:120px}
+    .input{width:140px}.select{min-width:120px}
     .btn-del{background:#1f2937;border:1px solid var(--border);color:#e2e8f0;border-radius:8px;padding:6px 10px;cursor:pointer}
     .right{margin-left:auto}
   </style>
@@ -67,24 +63,23 @@
       <button id="add-demo-task" class="btn">+ Добавить демо-задачу</button>
     </section>
 
-    <!-- CRYPTO: Market -->
+    <!-- Crypto: Market -->
     <section class="card">
       <div class="row" style="justify-content:space-between">
         <h3 class="card__title" style="margin:0">Crypto — Рынок</h3>
         <button id="refresh-crypto" class="btn" style="margin:0">Обновить</button>
       </div>
       <div id="crypto-list" class="list"></div>
-      <div class="muted" style="margin-top:8px">Источник: Binance → OKX → Bybit (кэш 60с).</div>
+      <div class="muted" style="margin-top:8px">Источник: Binance → OKX → Bybit (кэш 10с).</div>
     </section>
 
-    <!-- CRYPTO: Portfolio -->
+    <!-- Crypto: Portfolio -->
     <section class="card">
       <div class="row" style="justify-content:space-between">
         <h3 class="card__title" style="margin:0">Портфель</h3>
         <div class="muted" id="pf-total">Итого: $0</div>
       </div>
       <div id="pf-list" class="list"></div>
-
       <div class="inputs">
         <select id="pf-coin" class="select">
           <option value="bitcoin">BTC</option>
@@ -106,4 +101,3 @@
   <script type="module" src="./app.js"></script>
 </body>
 </html>
-
