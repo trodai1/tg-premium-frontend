@@ -1,4 +1,5 @@
 :root {
+  /* Цвета из темы Telegram, иначе дефолты */
   --bg:          var(--tg-theme-bg-color, #0f1115);
   --card:        var(--tg-theme-secondary-bg-color, #171a21);
   --text:        var(--tg-theme-text-color, #e8ecf1);
@@ -79,5 +80,5 @@ body {
   padding: 16px 4px 8px;
 }
 
-/* Force opaque background on Desktop */
+/* Принудительно непрозрачный фон на Desktop */
 html, body, #tg-viewport, .tg-absolute-bg { background:#0f1115 !important; }
