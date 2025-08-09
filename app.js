@@ -154,10 +154,15 @@ async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
   try{
     const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
     const data = await api(q);
-    renderCrypto(data || []);
+    if (Array.isArray(data)) {
+      renderCrypto(data);
+    } else {
+      throw data;
+    }
   }catch(e){
     console.error(e);
-    els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок.</div>`;
+    const reason = (e && (e.error || e.reason)) ? ` (${e.error || e.reason})` : '';
+    els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок${reason}.</div>`;
   }
 }
 /* ───────────────────────────────────────────────────── */
