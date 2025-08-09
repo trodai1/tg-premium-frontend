@@ -5,11 +5,7 @@
   <meta name="theme-color" content="#0f1115">
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Premium Business</title>
-
-  <!-- Официальный SDK Telegram Mini Apps -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- ВСТРОЕННЫЙ CSS (никаких внешних файлов) -->
   <style>
     :root{
       --bg:          var(--tg-theme-bg-color, #0f1115);
@@ -19,48 +15,31 @@
       --accent:      var(--tg-theme-button-color, #3b82f6);
       --accent-text: var(--tg-theme-button-text-color, #ffffff);
       --border:      rgba(255,255,255,0.12);
-      --ok:          #2ecc71;
-      --err:         #ff5c70;
+      --ok:          #2ecc71; --err: #ff5c70;
     }
-    html{color-scheme:dark light;}
-    *{box-sizing:border-box}
-    body{
-      margin:0;background:var(--bg)!important;color:var(--text);
-      font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Noto Sans",Arial;
-    }
+    html{color-scheme:dark light} *{box-sizing:border-box}
+    body{margin:0;background:var(--bg)!important;color:var(--text);
+      font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Noto Sans",Arial}
     .app{max-width:640px;margin:0 auto;padding:16px}
     .app__header{margin:6px 0 18px}
     .app__title{font-size:20px;font-weight:700}
     .app__subtitle{font-size:16px;margin-top:2px}
     .app__muted{color:var(--muted);margin-top:6px}
-
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin:14px 0}
     .card__title{margin:0 0 10px;font-size:16px}
-
     .status{padding:10px;background:var(--card);border:1px solid var(--border);border-radius:10px}
     .ok{color:var(--ok)} .err{color:var(--err)} .muted{color:var(--muted);font-size:13px}
-
-    .btn{
-      display:inline-block;margin-top:12px;background:var(--accent);color:var(--accent-text);
-      border:0;border-radius:10px;padding:10px 14px;cursor:pointer;transition:.15s;font-weight:600
-    }
+    .btn{display:inline-block;margin-top:12px;background:var(--accent);color:var(--accent-text);
+      border:0;border-radius:10px;padding:10px 14px;cursor:pointer;transition:.15s;font-weight:600}
     .btn:hover{filter:brightness(.95)}
-
     .list{display:grid;gap:10px}
     .item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--card)}
     .item__title{font-weight:600}
     .item__row{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-top:4px}
-
     .footer{display:flex;justify-content:space-between;padding:16px 4px 8px}
-
-    /* Принудительно непрозрачный фон на Desktop */
     html,body,#tg-viewport,.tg-absolute-bg{background:#0f1115!important}
-
-    /* маленький отладочный бэйдж — можно убрать */
-    #dbg{
-      position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.5);
-      color:#9aa6b2;font:12px/1.2 system-ui;padding:6px 8px;border:1px solid #232734;border-radius:8px;z-index:9999
-    }
+    #dbg{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.5);color:#9aa6b2;
+      font:12px/1.2 system-ui;padding:6px 8px;border:1px solid #232734;border-radius:8px;z-index:9999}
   </style>
 </head>
 <body>
@@ -96,8 +75,6 @@
   </div>
 
   <div id="dbg">init…</div>
-
-  <!-- ВАЖНО: app.js оставляем внешним (относительный путь для GitHub Pages) -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
