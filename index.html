@@ -24,7 +24,17 @@
     .chg-up{color:#34d399}.chg-down{color:#f87171}
     html,body,#tg-viewport,.tg-absolute-bg{background:#0f1115!important}
     #dbg{position:fixed;right:8px;bottom:8px;background:rgba(0,0,0,.5);color:#9aa6b2;font:12px/1.2 system-ui;padding:6px 8px;border:1px solid #232734;border-radius:8px;z-index:9999}
-    .coin{display:flex;gap:10px;align-items:center}.coin img{width:20px;height:20px;border-radius:50%}
+    .coin{display:flex;gap:10px;align-items:center}
+    .coin img{width:20px;height:20px;border-radius:50%;object-fit:cover}
+    /* Фоллбек-аватар для монет, если нет image */
+    .avatar{
+      width:20px;height:20px;border-radius:999px;
+      display:inline-flex;align-items:center;justify-content:center;
+      font-weight:700;font-size:11px;color:#fff;background:#475569;
+    }
+    .avatar[data-sym="BTC"]{ background:#f7931a; }
+    .avatar[data-sym="ETH"]{ background:#627eea; }
+    .avatar[data-sym="TON"]{ background:#0098ea; }
   </style>
 </head>
 <body>
@@ -60,7 +70,7 @@
         <button id="refresh-crypto" class="btn" style="margin:0">Обновить</button>
       </div>
       <div id="crypto-list" class="list"></div>
-      <div class="muted" style="margin-top:8px">Источник цен: CoinGecko (кэш 60с).</div>
+      <div class="muted" style="margin-top:8px">Источник: Binance → OKX → Bybit (кэш 60с).</div>
     </section>
 
     <footer class="footer muted">
@@ -73,5 +83,3 @@
   <script type="module" src="./app.js"></script>
 </body>
 </html>
-
-
