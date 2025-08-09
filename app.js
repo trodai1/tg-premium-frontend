@@ -161,7 +161,9 @@ async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
     }
   }catch(e){
     console.error(e);
-    const reason = (e && (e.error || e.reason)) ? ` (${e.error || e.reason})` : '';
+    const reason = e?.details
+      ? ` (CG: ${e.details?.coingecko?.status ?? '?'}; CC: ${e.details?.cryptocompare?.status ?? '?'}; CP: ${e.details?.coinpaprika?.status ?? '?'})`
+      : (e?.error ? ` (${e.error})` : '');
     els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок${reason}.</div>`;
   }
 }
