@@ -77,3 +77,10 @@ body {
   justify-content: space-between;
   padding: 16px 4px 8px;
 }
+/* Принудительно непрозрачный фон на Desktop */
+html, body, #tg-viewport, .tg-absolute-bg {
+  background: #0f1115 !important;
+}
+
+/* чуть выше контраст границ — чтобы не “плыло” */
+:root { --border: rgba(255,255,255,0.12); }
