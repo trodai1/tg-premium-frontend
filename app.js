@@ -1,4 +1,4 @@
-// Поставь сюда URL своего воркера (БЕЗ слеша в конце)
+// URL твоего воркера (БЕЗ слеша в конце)
 const BACKEND_URL = "https://tg-premium-worker.m-kir258.workers.dev";
 
 let AUTH_TOKEN = null;
@@ -19,19 +19,51 @@ function applyTelegramTheme() {
   Object.entries(map).forEach(([k,v])=>root.style.setProperty(k,v));
 }
 
+function getInitDataFromUrl() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  const q = new URLSearchParams(location.search);
+  return h.get("tgWebAppData") || q.get("tgWebAppData") || "";
+}
+
+async function waitForInitData(tg, tries = 8) {
+  // иногда на Desktop initData появляется с задержкой
+  for (let i = 0; i < tries; i++) {
+    const id = tg?.initData;
+    if (id && id.length > 0) return id;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return "";
+}
+
 async function authIfTelegram() {
   const status = document.getElementById("status");
   const tg = window.Telegram?.WebApp;
-  if (!tg || !tg.initData) {
+
+  if (!tg) {
     status.textContent = "Открыто вне Telegram. Авторизация WebApp не выполнена.";
     return false;
   }
+
+  tg.ready?.();
+
+  // 1) пытаемся взять initData из API (нормальный путь)
+  let initData = tg.initData || "";
+  if (!initData) initData = await waitForInitData(tg);
+
+  // 2) если всё ещё пусто — пытаемся из URL (иногда Телеграм его добавляет)
+  if (!initData) initData = getInitDataFromUrl();
+
+  if (!initData) {
+    status.textContent = "Не получил initData от Telegram. Попробуй открыть через команду /app ещё раз (или с телефона).";
+    return false;
+  }
+
   status.textContent = "Нашёл Telegram WebApp, авторизуюсь…";
   try {
     const res = await fetch(`${BACKEND_URL}/api/auth/telegram`, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ initData: tg.initData })
+      body: JSON.stringify({ initData })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "auth_failed");
@@ -108,6 +140,7 @@ window.addEventListener("DOMContentLoaded", async ()=>{
   applyTelegramTheme();
   document.getElementById("addClientBtn").onclick = addDemoClient;
   document.getElementById("addTaskBtn").onclick = addDemoTask;
+
   const ok = await authIfTelegram();
   if (ok) await Promise.all([loadClients(), loadTasks()]);
 });
