@@ -3,16 +3,31 @@ const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // <-- ПОМ�
 // =======================
 
 const tg = window.Telegram?.WebApp;
-const $ = (sel) => document.querySelector(sel);
+const $  = (sel) => document.querySelector(sel);
+const dbg = (t) => { const el = document.getElementById('dbg'); if (el) el.textContent = t; };
+
+// Инициализируем Telegram WebApp и показываем мини-диагностику
+try {
+  if (tg) {
+    tg.ready();
+    tg.expand?.();
+    tg.disableVerticalSwipes?.();
+    dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
+  } else {
+    dbg('tg = undefined (SDK не подхватился)');
+  }
+} catch (e) {
+  dbg('tg error: ' + String(e));
+}
 
 const els = {
-  status: $('#status'),
-  statusHelp: $('#status-help'),
-  userId: $('#user-id'),
-  clients: $('#clients-list'),
-  tasks: $('#tasks-list'),
-  addClient: $('#add-demo-client'),
-  addTask: $('#add-demo-task'),
+  status:      $('#status'),
+  statusHelp:  $('#status-help'),
+  userId:      $('#user-id'),
+  clients:     $('#clients-list'),
+  tasks:       $('#tasks-list'),
+  addClient:   $('#add-demo-client'),
+  addTask:     $('#add-demo-task'),
 };
 
 let TOKEN = localStorage.getItem('pb_token') || '';
@@ -24,6 +39,18 @@ function setStatus(text, type='') {
   els.status.textContent = text;
 }
 function setHelp(text) { els.statusHelp.textContent = text || ''; }
+
+function escapeHtml(s='') {
+  return String(s)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;')
+    .replaceAll('>','&gt;').replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
+}
+function formatMoney(v) {
+  try {
+    return Intl.NumberFormat('en', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(v);
+  } catch { return `$${v}`; }
+}
 
 function renderClients(list) {
   els.clients.innerHTML = list.length
@@ -53,18 +80,6 @@ function renderTasks(list) {
     : `<div class="muted">Пока пусто — добавьте демо-задачу.</div>`;
 }
 
-function escapeHtml(s='') {
-  return String(s)
-    .replaceAll('&','&amp;').replaceAll('<','&lt;')
-    .replaceAll('>','&gt;').replaceAll('"','&quot;')
-    .replaceAll("'",'&#039;');
-}
-function formatMoney(v) {
-  try {
-    return Intl.NumberFormat('en', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(v);
-  } catch { return `$${v}`; }
-}
-
 async function api(path, opts={}) {
   const init = {
     method: 'GET',
@@ -77,11 +92,37 @@ async function api(path, opts={}) {
   return data;
 }
 
+// Fallback: собрать initData из initDataUnsafe (Desktop иногда не кладёт строку в initData)
+function buildInitDataFromUnsafe(unsafe) {
+  if (!unsafe) return '';
+  const p = new URLSearchParams();
+  if (unsafe.query_id)    p.set('query_id', unsafe.query_id);
+  if (unsafe.user)        p.set('user', JSON.stringify(unsafe.user));
+  if (unsafe.auth_date)   p.set('auth_date', String(unsafe.auth_date));
+  if (unsafe.hash)        p.set('hash', unsafe.hash);
+  if (unsafe.start_param) p.set('start_param', unsafe.start_param);
+  return p.toString();
+}
+
 async function auth() {
-  // если открыто вне Telegram — показываем подсказку
-  if (!tg || !tg.initData) {
+  if (!tg) {
     setStatus('Открыто вне Telegram. Авторизация не выполнена.', 'err');
     setHelp('Открой через кнопку у бота, чтобы авторизоваться.');
+    return false;
+  }
+
+  // основная строка из Telegram
+  let initData = tg.initData;
+
+  // если пусто — собираем из initDataUnsafe (fallback для Desktop)
+  if (!initData || initData.length === 0) {
+    const fallback = buildInitDataFromUnsafe(tg.initDataUnsafe);
+    if (fallback) initData = fallback;
+  }
+
+  if (!initData || initData.length === 0) {
+    setStatus('Открыто внутри Telegram, но initData пустая.', 'err');
+    setHelp('Обнови Telegram до последней версии и открой через кнопку у бота.');
     return false;
   }
 
@@ -89,7 +130,7 @@ async function auth() {
   try {
     const res = await api('/api/auth/telegram', {
       method: 'POST',
-      body: JSON.stringify({ initData: tg.initData })
+      body: JSON.stringify({ initData })
     });
 
     if (res.ok && res.token) {
@@ -120,11 +161,10 @@ async function loadAll() {
     renderClients(clients);
     renderTasks(tasks);
   } catch (e) {
-    // если токен протух/нет прав
     if (e && (e.error === 'no_token' || e.error === 'bad_token')) {
       localStorage.removeItem('pb_token');
       TOKEN = '';
-      setStatus('Сессия истекла — обнови приложение через кнопку у бота.', 'err');
+      setStatus('Сессия истекла — открой через кнопку у бота.', 'err');
       return;
     }
     console.error(e);
@@ -132,23 +172,13 @@ async function loadAll() {
 }
 
 async function addDemoClient() {
-  const body = {
-    company: 'Acme Corp',
-    stage: 'Negotiation',
-    owner: 'Мария',
-    amount: 24000
-  };
+  const body = { company: 'Acme Corp', stage: 'Negotiation', owner: 'Мария', amount: 24000 };
   await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
   await loadAll();
 }
 
 async function addDemoTask() {
-  const body = {
-    title: 'Позвонить Acme',
-    tag: 'sales',
-    due: 'Сегодня',
-    status: 'inprogress'
-  };
+  const body = { title: 'Позвонить Acme', tag: 'sales', due: 'Сегодня', status: 'inprogress' };
   await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
   await loadAll();
 }
@@ -168,7 +198,7 @@ async function boot() {
   } catch {}
   wire();
 
-  // Если уже есть токен — пробуем сразу грузить
+  // если уже есть токен — попробуем сразу
   if (TOKEN) {
     setStatus('Проверка сессии…');
     try {
@@ -176,13 +206,12 @@ async function boot() {
       setStatus('Готово: авторизация по токену', 'ok');
       return;
     } catch {
-      // токен невалиден — чистим и авторизуемся заново
       localStorage.removeItem('pb_token');
       TOKEN = '';
     }
   }
 
-  // Полная авторизация
+  // полная авторизация
   const ok = await auth();
   if (ok) await loadAll();
 }
