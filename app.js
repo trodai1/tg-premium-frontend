@@ -1,11 +1,11 @@
-// app.js
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://<твой-воркер>.workers.dev'; // ← замени на свой домен
+// Если у тебя другой воркер — замени URL ниже на свой.
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev';
 // =======================
 
 const tg = window.Telegram?.WebApp;
 
-// mini helpers
+// helpers
 const byId = (id) => document.getElementById(id);
 const els = {
   status:      byId('status'),
@@ -53,6 +53,7 @@ function renderClients(list=[]) {
       </div>`).join('')
     : `<div class="muted">Пока пусто — добавьте демо-сделку.</div>`;
 }
+
 function renderTasks(list=[]) {
   els.tasks.innerHTML = list.length
     ? list.map(t => `
@@ -80,7 +81,7 @@ async function api(path, opts={}) {
   return data;
 }
 
-// Fallback: build initData string from initDataUnsafe (Desktop sometimes)
+// Fallback: собрать initData из initDataUnsafe (для Desktop)
 function buildInitDataFromUnsafe(unsafe) {
   if (!unsafe) return '';
   const p = new URLSearchParams();
@@ -161,6 +162,7 @@ async function addDemoClient() {
   await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
   await loadAll();
 }
+
 async function addDemoTask() {
   const body = { title: 'Позвонить Acme', tag: 'sales', due: 'Сегодня', status: 'inprogress' };
   await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
@@ -176,7 +178,7 @@ async function boot() {
   try {
     if (tg) {
       tg.ready();
-      tg.setBackgroundColor?.('#0f1115');
+      tg.setBackgroundColor?.('#0f1115'); // плотный фон
       tg.setHeaderColor?.('#171a21');
       tg.expand?.();
       tg.disableVerticalSwipes?.();
@@ -188,6 +190,7 @@ async function boot() {
 
   wire();
 
+  // Если есть сохранённый токен — сразу грузим данные
   if (TOKEN) {
     setStatus('Проверка сессии…');
     try {
@@ -200,8 +203,10 @@ async function boot() {
     }
   }
 
+  // Полная авторизация
   const ok = await auth();
   if (ok) await loadAll();
 }
 
 boot();
+
