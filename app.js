@@ -1,190 +1,190 @@
-// ======================= app.js (полный) =======================
-// УКАЖИ URL своего воркера (БЕЗ слеша в конце)
-const BACKEND_URL = "https://tg-premium-worker.m-kir258.workers.dev";
+// ====== НАСТРОЙКА ======
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // <-- ПОМЕНЯЙ на свой воркер!
+// =======================
 
-let AUTH_TOKEN = null;
+const tg = window.Telegram?.WebApp;
+const $ = (sel) => document.querySelector(sel);
 
-/* ------------ Оформление в цветах Telegram ------------- */
-function applyTelegramTheme() {
-  const tg = window.Telegram?.WebApp;
-  if (!tg) return;
-  tg.ready?.();
-  const p = tg.themeParams || {};
-  const root = document.documentElement;
-  const map = {
-    "--bg":     p.bg_color            || "#0e1621",
-    "--fg":     p.text_color          || "#e6e6e6",
-    "--muted":  p.hint_color          || "#a1acb8",
-    "--accent": p.link_color          || "#50a8eb",
-    "--card":   p.secondary_bg_color  || "#131c26",
-  };
-  Object.entries(map).forEach(([k, v]) => root.style.setProperty(k, v));
+const els = {
+  status: $('#status'),
+  statusHelp: $('#status-help'),
+  userId: $('#user-id'),
+  clients: $('#clients-list'),
+  tasks: $('#tasks-list'),
+  addClient: $('#add-demo-client'),
+  addTask: $('#add-demo-task'),
+};
+
+let TOKEN = localStorage.getItem('pb_token') || '';
+const headers = () => TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {};
+
+function setStatus(text, type='') {
+  els.status.classList.remove('ok','err');
+  if (type) els.status.classList.add(type);
+  els.status.textContent = text;
+}
+function setHelp(text) { els.statusHelp.textContent = text || ''; }
+
+function renderClients(list) {
+  els.clients.innerHTML = list.length
+    ? list.map(c => `
+      <div class="item">
+        <div class="item__title">${escapeHtml(c.company || c.title || 'Компания')}</div>
+        <div class="item__row">
+          <span>Этап: ${escapeHtml(c.stage || 'Negotiation')}</span>
+          <span>Менеджер: ${escapeHtml(c.owner || '—')}</span>
+          <span>Сумма: ${formatMoney(c.amount || 0)}</span>
+        </div>
+      </div>`).join('')
+    : `<div class="muted">Пока пусто — добавьте демо-сделку.</div>`;
 }
 
-/* ------------ Получение initData (с запасом на Desktop) ------------- */
-function getInitDataFromUrl() {
-  const h = new URLSearchParams(location.hash.slice(1));
-  const q = new URLSearchParams(location.search);
-  return h.get("tgWebAppData") || q.get("tgWebAppData") || "";
+function renderTasks(list) {
+  els.tasks.innerHTML = list.length
+    ? list.map(t => `
+      <div class="item">
+        <div class="item__title">${escapeHtml(t.title || 'Задача')}</div>
+        <div class="item__row">
+          <span>Тег: ${escapeHtml(t.tag || 'sales')}</span>
+          <span>Срок: ${escapeHtml(t.due || 'Сегодня')}</span>
+          <span>Статус: ${escapeHtml(t.status || 'inprogress')}</span>
+        </div>
+      </div>`).join('')
+    : `<div class="muted">Пока пусто — добавьте демо-задачу.</div>`;
 }
-async function waitForInitData(tg, tries = 12) {
-  for (let i = 0; i < tries; i++) {
-    if (tg?.initData) return tg.initData;
-    await new Promise(r => setTimeout(r, 250));
-  }
-  return "";
+
+function escapeHtml(s='') {
+  return String(s)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;')
+    .replaceAll('>','&gt;').replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
 }
-
-/* ------------ Авторизация через /api/auth/telegram ------------- */
-async function authIfTelegram() {
-  const status = document.getElementById("status");
-  const tg = window.Telegram?.WebApp;
-
-  if (!tg) {
-    status.textContent = "Открыто вне Telegram. Авторизация WebApp не выполнена.";
-    return false;
-  }
-  tg.ready?.();
-
-  // пробуем получить initData из API, ждём, потом из URL
-  let initData = tg.initData || "";
-  if (!initData) initData = await waitForInitData(tg);
-  if (!initData) initData = getInitDataFromUrl();
-
-  if (!initData) {
-    status.textContent = "Не получил initData от Telegram. Открой через кнопку /app (или попробуй с телефона).";
-    return false;
-  }
-
-  status.textContent = "Нашёл Telegram WebApp, авторизуюсь…";
+function formatMoney(v) {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/telegram`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData })
+    return Intl.NumberFormat('en', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(v);
+  } catch { return `$${v}`; }
+}
+
+async function api(path, opts={}) {
+  const init = {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', ...headers(), ...(opts.headers||{}) },
+    ...opts
+  };
+  const res = await fetch(`${API_URL}${path}`, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw data;
+  return data;
+}
+
+async function auth() {
+  // если открыто вне Telegram — показываем подсказку
+  if (!tg || !tg.initData) {
+    setStatus('Открыто вне Telegram. Авторизация не выполнена.', 'err');
+    setHelp('Открой через кнопку у бота, чтобы авторизоваться.');
+    return false;
+  }
+
+  setStatus('Авторизация…');
+  try {
+    const res = await api('/api/auth/telegram', {
+      method: 'POST',
+      body: JSON.stringify({ initData: tg.initData })
     });
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      // Показываем развёрнутую причину, если воркер в режиме AUTH_DEBUG=1
-      if (data && (data.reason || data.details || data.error)) {
-        status.textContent = "Ошибка авторизации: " + (data.reason || data.error);
-        if (data.details) {
-          const pre = document.createElement("pre");
-          pre.style.whiteSpace = "pre-wrap";
-          pre.style.fontSize = "12px";
-          pre.style.marginTop = "8px";
-          pre.textContent = JSON.stringify(data.details, null, 2);
-          document.getElementById("authInfo").appendChild(pre);
-        }
-      } else {
-        status.textContent = "Ошибка авторизации: auth_failed";
-      }
+    if (res.ok && res.token) {
+      TOKEN = res.token;
+      localStorage.setItem('pb_token', TOKEN);
+      setStatus('Готово: авторизация успешна', 'ok');
+      els.userId.textContent = res.user?.id ? `User ID: ${res.user.id}` : '';
+      setHelp('');
+      return true;
+    } else {
+      setStatus('Ошибка авторизации', 'err');
+      setHelp(res.reason || res.error || '');
       return false;
     }
-
-    AUTH_TOKEN = data.token; // демо-токен с бэка
-    status.textContent = "Готово: авторизация успешна.";
-    return true;
   } catch (e) {
-    status.textContent = "Ошибка авторизации: " + e.message;
+    setStatus('Ошибка авторизации', 'err');
+    setHelp((e && (e.reason || e.error)) ? JSON.stringify(e) : 'unknown');
     return false;
   }
 }
 
-/* ------------ Мини-клиент к API ------------- */
-async function apiGet(path) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    headers: AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {}
-  });
-  if (!res.ok) throw new Error("API error");
-  return res.json();
-}
-async function apiPost(path, body) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {})
-    },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) throw new Error("API error");
-  return res.json();
-}
-
-/* ------------ Рендер CRM ------------- */
-async function loadClients() {
-  const wrap = document.getElementById("clients");
-  wrap.innerHTML = "Загрузка…";
+async function loadAll() {
   try {
-    const list = await apiGet("/api/crm/clients");
-    wrap.innerHTML = "";
-    if (!list.length) {
-      wrap.innerHTML = '<div class="item">Пока пусто. Нажми «Добавить демо-сделку».</div>';
+    const [clients, tasks] = await Promise.all([
+      api('/api/crm/clients'),
+      api('/api/tasks')
+    ]);
+    renderClients(clients);
+    renderTasks(tasks);
+  } catch (e) {
+    // если токен протух/нет прав
+    if (e && (e.error === 'no_token' || e.error === 'bad_token')) {
+      localStorage.removeItem('pb_token');
+      TOKEN = '';
+      setStatus('Сессия истекла — обнови приложение через кнопку у бота.', 'err');
       return;
     }
-    list.forEach(c => {
-      const el = document.createElement("div");
-      el.className = "item";
-      el.innerHTML = `<b>${c.name}</b><br/><small>Этап: ${c.stage} • Менеджер: ${c.owner} • Сумма: ${c.value}</small>`;
-      wrap.appendChild(el);
-    });
-  } catch {
-    wrap.innerHTML = "Не удалось загрузить клиентов.";
+    console.error(e);
   }
 }
 
-/* ------------ Рендер Tasks ------------- */
-async function loadTasks() {
-  const wrap = document.getElementById("tasks");
-  wrap.innerHTML = "Загрузка…";
-  try {
-    const list = await apiGet("/api/tasks");
-    wrap.innerHTML = "";
-    if (!list.length) {
-      wrap.innerHTML = '<div class="item">Задач нет. Нажми «Добавить демо-задачу».</div>';
-      return;
-    }
-    list.forEach(t => {
-      const el = document.createElement("div");
-      el.className = "item";
-      el.innerHTML = `<b>${t.title}</b><br/><small>Тег: ${t.tag} • Срок: ${t.due} • Статус: ${t.status}</small>`;
-      wrap.appendChild(el);
-    });
-  } catch {
-    wrap.innerHTML = "Не удалось загрузить задачи.";
-  }
-}
-
-/* ------------ Демо-кнопки ------------- */
 async function addDemoClient() {
-  await apiPost("/api/crm/clients", {
-    name: "Acme Corp",
-    stage: "Negotiation",
-    owner: "Мария",
-    value: "$24,000"
-  });
-  await loadClients();
+  const body = {
+    company: 'Acme Corp',
+    stage: 'Negotiation',
+    owner: 'Мария',
+    amount: 24000
+  };
+  await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
+  await loadAll();
 }
+
 async function addDemoTask() {
-  await apiPost("/api/tasks", {
-    title: "Позвонить Acme",
-    tag: "sales",
-    due: "Сегодня",
-    status: "inprogress"
-  });
-  await loadTasks();
+  const body = {
+    title: 'Позвонить Acme',
+    tag: 'sales',
+    due: 'Сегодня',
+    status: 'inprogress'
+  };
+  await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
+  await loadAll();
 }
 
-/* ------------ Старт ------------- */
-window.addEventListener("DOMContentLoaded", async () => {
-  applyTelegramTheme();
+function wire() {
+  els.addClient.addEventListener('click', addDemoClient);
+  els.addTask.addEventListener('click', addDemoTask);
+}
 
-  document.getElementById("addClientBtn").onclick = addDemoClient;
-  document.getElementById("addTaskBtn").onclick = addDemoTask;
+async function boot() {
+  try {
+    if (tg) {
+      tg.ready();
+      tg.expand?.();
+      tg.disableVerticalSwipes?.();
+    }
+  } catch {}
+  wire();
 
-  const ok = await authIfTelegram();
-  if (ok) await Promise.all([loadClients(), loadTasks()]);
-});
+  // Если уже есть токен — пробуем сразу грузить
+  if (TOKEN) {
+    setStatus('Проверка сессии…');
+    try {
+      await loadAll();
+      setStatus('Готово: авторизация по токену', 'ok');
+      return;
+    } catch {
+      // токен невалиден — чистим и авторизуемся заново
+      localStorage.removeItem('pb_token');
+      TOKEN = '';
+    }
+  }
+
+  // Полная авторизация
+  const ok = await auth();
+  if (ok) await loadAll();
+}
+
+boot();
