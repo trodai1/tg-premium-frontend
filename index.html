@@ -1,45 +1,47 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Premium Business</title>
-  <link rel="stylesheet" href="./style.css"/>
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- Телеграм импортить не нужно, объект доступен как window.Telegram.WebApp -->
 </head>
 <body>
-  <header>
-    <div class="title">Premium Business</div>
-    <div class="hint">Лаконично, быстро, по-телеграмному</div>
-  </header>
+  <div class="app">
+    <header class="app__header">
+      <div class="app__title">NewSaaS</div>
+      <div class="app__subtitle">Premium Business</div>
+      <div class="app__muted">Лаконично, быстро, по-телеграмному</div>
+    </header>
 
-  <main>
-    <section id="authInfo" class="card">
-      <div class="card-title">Статус</div>
-      <div id="status">Проверяю окружение…</div>
+    <!-- Статус -->
+    <section class="card">
+      <h3 class="card__title">Статус</h3>
+      <div id="status" class="status">Проверка окружения…</div>
+      <div id="status-help" class="muted"></div>
     </section>
 
-    <section class="grid">
-      <div class="card">
-        <div class="card-title">CRM — Клиенты</div>
-        <div id="clients"></div>
-        <button id="addClientBtn">+ Добавить демо-сделку</button>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Tasks — Задачи</div>
-        <div id="tasks"></div>
-        <button id="addTaskBtn">+ Добавить демо-задачу</button>
-      </div>
+    <!-- CRM -->
+    <section class="card">
+      <h3 class="card__title">CRM — Клиенты</h3>
+      <div id="clients-list" class="list"></div>
+      <button id="add-demo-client" class="btn">+ Добавить демо-сделку</button>
     </section>
-  </main>
 
-  <footer>
-    <small>Открой через кнопку в боте для авторизации WebApp</small>
-  </footer>
+    <!-- Tasks -->
+    <section class="card">
+      <h3 class="card__title">Tasks — Задачи</h3>
+      <div id="tasks-list" class="list"></div>
+      <button id="add-demo-task" class="btn">+ Добавить демо-задачу</button>
+    </section>
 
-  <!-- ОБЯЗАТЕЛЬНО: SDK Telegram WebApp -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Твой код приложения -->
-  <script src="./app.js" defer></script>
+    <footer class="footer muted">
+      <span>© Premium Business</span>
+      <span id="user-id" class="muted"></span>
+    </footer>
+  </div>
+
+  <script src="./app.js" type="module"></script>
 </body>
 </html>
