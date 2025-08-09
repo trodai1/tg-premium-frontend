@@ -1,39 +1,23 @@
+// app.js
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // <-- ПОМЕНЯЙ на свой воркер!
+const API_URL = 'https://<твой-воркер>.workers.dev'; // ← замени на свой домен
 // =======================
+
 const tg = window.Telegram?.WebApp;
 
-// ...
-
-try {
-  if (tg) {
-  tg.ready();
-
-  // Жёстко: сплошной фон и шапка (hex, без альфы)
-  tg.setBackgroundColor('#0f1115');      // фон webview
-  tg.setHeaderColor('#171a21');          // цвет заголовка (вместо 'secondary_bg_color')
-
-  tg.expand?.();
-  tg.disableVerticalSwipes?.();
-
-  dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
-}
- else {
-    dbg('tg = undefined (SDK не подхватился)');
-  }
-} catch (e) {
-  dbg('tg error: ' + String(e));
-}
-
+// mini helpers
+const byId = (id) => document.getElementById(id);
 const els = {
-  status:      $('#status'),
-  statusHelp:  $('#status-help'),
-  userId:      $('#user-id'),
-  clients:     $('#clients-list'),
-  tasks:       $('#tasks-list'),
-  addClient:   $('#add-demo-client'),
-  addTask:     $('#add-demo-task'),
+  status:      byId('status'),
+  statusHelp:  byId('status-help'),
+  userId:      byId('user-id'),
+  clients:     byId('clients-list'),
+  tasks:       byId('tasks-list'),
+  addClient:   byId('add-demo-client'),
+  addTask:     byId('add-demo-task'),
 };
+const dbgBox = byId('dbg');
+const dbg = (msg) => { if (dbgBox) dbgBox.textContent = String(msg); console.log('[DBG]', msg); };
 
 let TOKEN = localStorage.getItem('pb_token') || '';
 const headers = () => TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {};
@@ -52,12 +36,11 @@ function escapeHtml(s='') {
     .replaceAll("'",'&#039;');
 }
 function formatMoney(v) {
-  try {
-    return Intl.NumberFormat('en', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(v);
-  } catch { return `$${v}`; }
+  try { return Intl.NumberFormat('en', { style:'currency', currency:'USD', maximumFractionDigits:0 }).format(v); }
+  catch { return `$${v}`; }
 }
 
-function renderClients(list) {
+function renderClients(list=[]) {
   els.clients.innerHTML = list.length
     ? list.map(c => `
       <div class="item">
@@ -70,8 +53,7 @@ function renderClients(list) {
       </div>`).join('')
     : `<div class="muted">Пока пусто — добавьте демо-сделку.</div>`;
 }
-
-function renderTasks(list) {
+function renderTasks(list=[]) {
   els.tasks.innerHTML = list.length
     ? list.map(t => `
       <div class="item">
@@ -92,12 +74,13 @@ async function api(path, opts={}) {
     ...opts
   };
   const res = await fetch(`${API_URL}${path}`, init);
-  const data = await res.json().catch(() => ({}));
+  let data = {};
+  try { data = await res.json(); } catch {}
   if (!res.ok) throw data;
   return data;
 }
 
-// Fallback: собрать initData из initDataUnsafe (Desktop иногда не кладёт строку в initData)
+// Fallback: build initData string from initDataUnsafe (Desktop sometimes)
 function buildInitDataFromUnsafe(unsafe) {
   if (!unsafe) return '';
   const p = new URLSearchParams();
@@ -116,10 +99,7 @@ async function auth() {
     return false;
   }
 
-  // основная строка из Telegram
   let initData = tg.initData;
-
-  // если пусто — собираем из initDataUnsafe (fallback для Desktop)
   if (!initData || initData.length === 0) {
     const fallback = buildInitDataFromUnsafe(tg.initDataUnsafe);
     if (fallback) initData = fallback;
@@ -181,7 +161,6 @@ async function addDemoClient() {
   await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
   await loadAll();
 }
-
 async function addDemoTask() {
   const body = { title: 'Позвонить Acme', tag: 'sales', due: 'Сегодня', status: 'inprogress' };
   await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
@@ -189,21 +168,26 @@ async function addDemoTask() {
 }
 
 function wire() {
-  els.addClient.addEventListener('click', addDemoClient);
-  els.addTask.addEventListener('click', addDemoTask);
+  els.addClient?.addEventListener('click', addDemoClient);
+  els.addTask?.addEventListener('click', addDemoTask);
 }
 
 async function boot() {
   try {
     if (tg) {
       tg.ready();
+      tg.setBackgroundColor?.('#0f1115');
+      tg.setHeaderColor?.('#171a21');
       tg.expand?.();
       tg.disableVerticalSwipes?.();
+      dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
+    } else {
+      dbg('tg = undefined (SDK не подхватился)');
     }
-  } catch {}
+  } catch (e) { dbg('tg error: ' + String(e)); }
+
   wire();
 
-  // если уже есть токен — попробуем сразу
   if (TOKEN) {
     setStatus('Проверка сессии…');
     try {
@@ -216,7 +200,6 @@ async function boot() {
     }
   }
 
-  // полная авторизация
   const ok = await auth();
   if (ok) await loadAll();
 }
