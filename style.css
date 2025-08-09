@@ -1,22 +1,21 @@
 :root {
-  /* Берём цвета из темы Telegram, иначе используем наши */
   --bg:          var(--tg-theme-bg-color, #0f1115);
   --card:        var(--tg-theme-secondary-bg-color, #171a21);
   --text:        var(--tg-theme-text-color, #e8ecf1);
   --muted:       var(--tg-theme-hint-color, #99a2b1);
   --accent:      var(--tg-theme-button-color, #3b82f6);
   --accent-text: var(--tg-theme-button-text-color, #ffffff);
-  --border:      rgba(255, 255, 255, 0.06);
+  --border:      rgba(255,255,255,0.12);
   --ok:          #2ecc71;
   --err:         #ff5c70;
 }
 
-html { color-scheme: dark light; } /* корректные системные цвета в вебвью */
+html { color-scheme: dark light; }
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--bg) !important;   /* непрозрачный фон */
+  background: var(--bg) !important;
   color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", Arial;
 }
@@ -48,6 +47,7 @@ body {
 .muted { color: var(--muted); font-size: 13px; }
 
 .btn {
+  display:inline-block;
   margin-top: 12px;
   background: var(--accent);
   color: var(--accent-text);
@@ -56,6 +56,7 @@ body {
   padding: 10px 14px;
   cursor: pointer;
   transition: .15s;
+  font-weight: 600;
 }
 .btn:hover { filter: brightness(0.95); }
 
@@ -77,10 +78,6 @@ body {
   justify-content: space-between;
   padding: 16px 4px 8px;
 }
-/* Принудительно непрозрачный фон на Desktop */
-html, body, #tg-viewport, .tg-absolute-bg {
-  background: #0f1115 !important;
-}
 
-/* чуть выше контраст границ — чтобы не “плыло” */
-:root { --border: rgba(255,255,255,0.12); }
+/* Force opaque background on Desktop */
+html, body, #tg-viewport, .tg-absolute-bg { background:#0f1115 !important; }
