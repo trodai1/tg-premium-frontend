@@ -1,10 +1,13 @@
 :root{
   --bg:#0e1621; --fg:#e6e6e6; --muted:#a1acb8; --card:#131c26; --accent:#50a8eb;
 }
-*{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
 header{padding:16px 20px;border-bottom:1px solid #ffffff1a;background:#0e1621cc;backdrop-filter:saturate(120%) blur(6px);position:sticky;top:0}
-.title{font-weight:600;font-size:18px} .hint{color:var(--muted);font-size:12px}
-main{padding:16px 20px} .grid{display:grid;gap:16px;grid-template-columns:1fr;max-width:1100px}
+.title{font-weight:600;font-size:18px}
+.hint{color:var(--muted);font-size:12px}
+main{padding:16px 20px}
+.grid{display:grid;gap:16px;grid-template-columns:1fr;max-width:1100px}
 @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
 .card{background:var(--card);border:1px solid #ffffff1a;border-radius:14px;padding:14px}
 .card-title{font-weight:600;margin-bottom:8px}
