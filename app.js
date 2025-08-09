@@ -1,5 +1,5 @@
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev';
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // твой воркер
 // =======================
 
 const tg = window.Telegram?.WebApp;
@@ -129,22 +129,28 @@ async function loadAll(){
 }
 
 /* ── CRYPTO ─────────────────────────────────────────── */
-function renderCrypto(list=[]){
+function renderCrypto(list = []) {
   els.cryptoList.innerHTML = list.length
     ? list.map(c => {
-        const chg = Number(c.price_change_percentage_24h || 0);
-        const cls = chg >= 0 ? 'chg-up' : 'chg-down';
-        const pct = (chg>=0?'+':'') + chg.toFixed(2) + '%';
+        const sym = (c.symbol || '').toUpperCase();
+        const pct = Number(c.price_change_percentage_24h || 0);
+        const cls = pct >= 0 ? 'chg-up' : 'chg-down';
+        const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+        const icon = c.image
+          ? `<img src="${c.image}" alt="${escapeHtml(sym)}"/>`
+          : `<span class="avatar" data-sym="${escapeHtml(sym)}">${escapeHtml(sym[0] || '?')}</span>`;
+        const mc = Number(c.market_cap || 0);
+
         return `
           <div class="item">
             <div class="coin">
-              <img src="${c.image}" alt="${escapeHtml(c.symbol)}"/>
-              <div class="item__title">${escapeHtml(c.name)} <span class="muted">(${escapeHtml(c.symbol.toUpperCase())})</span></div>
+              ${icon}
+              <div class="item__title">${escapeHtml(c.name || sym)} <span class="muted">(${escapeHtml(sym)})</span></div>
             </div>
             <div class="item__row">
-              <span class="pill">${Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(c.current_price)}</span>
-              <span class="pill ${cls}">${pct}</span>
-              <span class="muted">MC Cap: ${Intl.NumberFormat('en-US',{notation:'compact'}).format(c.market_cap || 0)}</span>
+              <span class="pill">${Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(c.current_price || 0))}</span>
+              <span class="pill ${cls}">${pctStr}</span>
+              ${mc > 0 ? `<span class="muted">MC Cap: ${Intl.NumberFormat('en-US',{notation:'compact'}).format(mc)}</span>` : ``}
             </div>
           </div>`;
       }).join('')
@@ -154,16 +160,11 @@ async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
   try{
     const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
     const data = await api(q);
-    if (Array.isArray(data)) {
-      renderCrypto(data);
-    } else {
-      throw data;
-    }
+    if (Array.isArray(data)) renderCrypto(data);
+    else throw data;
   }catch(e){
     console.error(e);
-    const reason = e?.details
-      ? ` (CG: ${e.details?.coingecko?.status ?? '?'}; CC: ${e.details?.cryptocompare?.status ?? '?'}; CP: ${e.details?.coinpaprika?.status ?? '?'})`
-      : (e?.error ? ` (${e.error})` : '');
+    const reason = e?.details ? ` (${(e.details||[]).map(x=>x).join(', ')})` : (e?.error ? ` (${e.error})` : '');
     els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок${reason}.</div>`;
   }
 }
@@ -175,7 +176,11 @@ async function addDemoTask(){ await api('/api/tasks', { method:'POST', body: JSO
 function wire(){
   els.addClient?.addEventListener('click', addDemoClient);
   els.addTask?.addEventListener('click', addDemoTask);
-  els.cryptoRefresh?.addEventListener('click', () => loadCrypto());
+  els.cryptoRefresh?.addEventListener('click', async () => {
+    els.cryptoRefresh.disabled = true;
+    await loadCrypto();
+    setTimeout(() => { els.cryptoRefresh.disabled = false; }, 5000); // анти-спам
+  });
 }
 
 async function boot(){
@@ -205,3 +210,4 @@ async function boot(){
 }
 
 boot();
+
