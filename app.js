@@ -1,5 +1,5 @@
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev';
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // твой Worker
 // =======================
 
 const tg = window.Telegram?.WebApp;
@@ -45,7 +45,9 @@ const fmtMoney = (v) => {
   catch { return `$${v}`; }
 };
 
-// API с авто-реавторизацией
+function busy(btn, on){ if(!btn) return; btn.disabled = !!on; btn.dataset.busy = on ? '1' : ''; }
+
+// API с авто-реавторизацией и единым повтором
 async function api(path, opts = {}, retry = true) {
   const init = { method:'GET', headers:{ 'Content-Type':'application/json', ...headers(), ...(opts.headers||{}) }, ...opts };
   const res = await fetch(`${API_URL}${path}`, init);
@@ -122,18 +124,36 @@ function renderClients(list=[]){
       </div>`).join('')
     : `<div class="muted">Пока пусто — добавьте сделку через форму выше.</div>`;
 }
-async function loadClients(){ const list = await api('/api/crm/clients'); renderClients(list); }
+async function loadClients(){
+  const list = await api('/api/crm/clients');
+  renderClients(list);
+}
 async function addClient(){
+  // валидация
+  const company = els.cCompany.value.trim();
+  if (!company){
+    setStatus('Введите название компании', 'err');
+    els.cCompany.focus(); return;
+  }
   const body = {
-    company: els.cCompany.value.trim(),
-    stage: els.cStage.value.trim(),
+    company,
+    stage: els.cStage.value.trim() || 'Lead',
     owner: els.cOwner.value.trim(),
     amount: Number(els.cAmount.value || 0),
   };
-  if (!body.company) return;
-  await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
-  els.cCompany.value = ''; els.cOwner.value=''; els.cAmount.value='';
-  await loadClients();
+  await ensureAuth();
+  busy(els.cAdd, true);
+  try{
+    await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
+    els.cCompany.value = ''; els.cOwner.value=''; els.cAmount.value='';
+    setStatus('Сделка добавлена', 'ok');
+    await loadClients();
+  }catch(e){
+    console.error(e);
+    setStatus('Ошибка добавления сделки', 'err');
+  }finally{
+    busy(els.cAdd, false);
+  }
 }
 async function editClient(id, current){
   const company = prompt('Компания:', current.company || '') ?? current.company;
@@ -156,7 +176,7 @@ function renderTasks(list=[]){
       <div class="item" data-id="${t.id}">
         <div class="item__title">${escapeHtml(t.title || 'Задача')}</div>
         <div class="item__row">
-          <span>Тег: <b>${escapeHtml(t.tag || 'sales')}</b></span>
+          <span>Тег: <b>${escapeHtml(t.tag || 'general')}</b></span>
           <span>Срок: <b>${escapeHtml(t.due || '—')}</b></span>
           <span>Статус: <b>${escapeHtml(t.status || 'todo')}</b></span>
         </div>
@@ -167,23 +187,46 @@ function renderTasks(list=[]){
       </div>`).join('')
     : `<div class="muted">Пока пусто — добавьте задачу через форму выше.</div>`;
 }
-async function loadTasks(){ const list = await api('/api/tasks'); renderTasks(list); }
+async function loadTasks(){
+  const list = await api('/api/tasks');
+  renderTasks(list);
+}
+function todayStr(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
 async function addTask(){
+  const title = els.tTitle.value.trim();
+  if (!title){
+    setStatus('Введите название задачи', 'err');
+    els.tTitle.focus(); return;
+  }
   const body = {
-    title: els.tTitle.value.trim(),
+    title,
     tag: els.tTag.value.trim() || 'general',
-    due: els.tDue.value || 'Сегодня',
+    due: els.tDue.value || todayStr(),
     status: els.tStatus.value || 'todo',
   };
-  if (!body.title) return;
-  await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
-  els.tTitle.value=''; els.tTag.value=''; els.tDue.value='';
-  await loadTasks();
+  await ensureAuth();
+  busy(els.tAdd, true);
+  try{
+    await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
+    els.tTitle.value=''; els.tTag.value=''; els.tDue.value='';
+    setStatus('Задача добавлена', 'ok');
+    await loadTasks();
+  }catch(e){
+    console.error(e);
+    setStatus('Ошибка добавления задачи', 'err');
+  }finally{
+    busy(els.tAdd, false);
+  }
 }
 async function editTask(id, current){
   const title = prompt('Название задачи:', current.title || '') ?? current.title;
   const tag = prompt('Тег:', current.tag || 'general') ?? current.tag;
-  const due = prompt('Срок (YYYY-MM-DD или текст):', current.due || '') ?? current.due;
+  const due = prompt('Срок (YYYY-MM-DD или текст):', current.due || todayStr()) ?? current.due;
   const status = prompt('Статус (todo/inprogress/done):', current.status || 'todo') ?? current.status;
   await api(`/api/tasks/${id}`, { method:'PUT', body: JSON.stringify({ title, tag, due, status }) });
   await loadTasks();
@@ -268,7 +311,7 @@ async function loadPortfolio(silent=false){
 async function addPortfolioItem(){
   const coin = els.pfCoin.value;
   const amount = parseFloat(els.pfAmount.value);
-  if (!coin || !amount || isNaN(amount) || amount <= 0) return;
+  if (!coin || !amount || isNaN(amount) || amount <= 0) { setStatus('Введите корректное количество', 'err'); els.pfAmount.focus(); return; }
   await api('/api/crypto/portfolio', { method:'POST', body: JSON.stringify({ coin, amount }) });
   els.pfAmount.value = '';
   await loadPortfolio(true);
@@ -283,13 +326,12 @@ document.addEventListener('visibilitychange', ()=>{ if (document.hidden) stopAut
 /* ===== wire & boot ===== */
 function wire(){
   // CRM
-  els.cAdd.addEventListener('click', addClient);
+  els.cAdd.addEventListener('click', (e)=>{ e.preventDefault(); addClient(); });
   els.clients.addEventListener('click', async (e)=>{
     const delId = e.target.getAttribute('data-del');
     const editId = e.target.getAttribute('data-edit');
     if (delId) return deleteClient(Number(delId));
     if (editId) {
-      // найдём текущее значение из DOM (или перезагрузим список и спросим)
       const node = e.target.closest('.item');
       const current = {
         company: node.querySelector('.item__title')?.textContent.trim(),
@@ -302,7 +344,7 @@ function wire(){
   });
 
   // Tasks
-  els.tAdd.addEventListener('click', addTask);
+  els.tAdd.addEventListener('click', (e)=>{ e.preventDefault(); addTask(); });
   els.tasks.addEventListener('click', async (e)=>{
     const delId = e.target.getAttribute('data-del');
     const editId = e.target.getAttribute('data-edit');
@@ -321,12 +363,13 @@ function wire(){
   });
 
   // Crypto
-  els.cryptoRefresh.addEventListener('click', async ()=>{
+  els.cryptoRefresh.addEventListener('click', async (e)=>{
+    e.preventDefault();
     els.cryptoRefresh.disabled = true; await loadCrypto(); setTimeout(()=>{ els.cryptoRefresh.disabled=false; }, 3000);
   });
 
   // Portfolio
-  els.pfAdd.addEventListener('click', addPortfolioItem);
+  els.pfAdd.addEventListener('click', (e)=>{ e.preventDefault(); addPortfolioItem(); });
 }
 
 async function boot(){
