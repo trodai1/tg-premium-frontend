@@ -11,7 +11,11 @@
     html{color-scheme:dark light}*{box-sizing:border-box}
     body{margin:0;background:var(--bg)!important;color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Noto Sans",Arial}
     .app{max-width:640px;margin:0 auto;padding:16px}
-    .app__header{margin:6px 0 18px}.app__title{font-size:20px;font-weight:700}.app__subtitle{font-size:16px;margin-top:2px}.app__muted{color:var(--muted);margin-top:6px}
+    .app__header{margin:6px 0 18px}
+    .header-row{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+    .app__title{font-size:20px;font-weight:700}
+    .app__subtitle{font-size:16px;margin-top:2px}
+    .app__muted{color:var(--muted);margin-top:6px}
 
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin:14px 0}
     .card__title{margin:0 0 10px;font-size:16px}
@@ -52,21 +56,26 @@
 <body>
   <div class="app">
     <header class="app__header">
-      <div class="app__title">NewSaaS</div>
-      <div class="app__subtitle">Premium Business</div>
-      <div class="app__muted">Лаконично, быстро, по-телеграмному</div>
+      <div class="header-row">
+        <div>
+          <div id="hdr-title" class="app__title">NewSaaS</div>
+          <div id="hdr-subtitle" class="app__subtitle">Premium Business</div>
+          <div id="hdr-muted" class="app__muted">Лаконично, быстро, по-телеграмному</div>
+        </div>
+        <button id="lang-toggle" class="btn-sm" aria-label="Language">EN</button>
+      </div>
     </header>
 
     <!-- Статус -->
     <section class="card">
-      <h3 class="card__title">Статус</h3>
+      <h3 id="card-status-title" class="card__title">Статус</h3>
       <div id="status" class="status">Проверка окружения…</div>
       <div id="status-help" class="muted"></div>
     </section>
 
     <!-- CRM -->
     <section class="card">
-      <h3 class="card__title">CRM — Клиенты</h3>
+      <h3 id="card-crm-title" class="card__title">CRM — Клиенты</h3>
 
       <div class="inputs">
         <input id="c-company" class="input" placeholder="Компания" />
@@ -85,7 +94,7 @@
 
     <!-- Tasks -->
     <section class="card">
-      <h3 class="card__title">Tasks — Задачи</h3>
+      <h3 id="card-tasks-title" class="card__title">Tasks — Задачи</h3>
 
       <div class="inputs">
         <input id="t-title" class="input" placeholder="Название задачи" />
@@ -104,17 +113,17 @@
     <!-- Crypto: Market -->
     <section class="card">
       <div class="row" style="justify-content:space-between">
-        <h3 class="card__title" style="margin:0">Crypto — Рынок</h3>
+        <h3 id="card-crypto-title" class="card__title" style="margin:0">Crypto — Рынок</h3>
         <button id="refresh-crypto" class="btn" style="margin:0">Обновить</button>
       </div>
       <div id="crypto-list" class="list"></div>
-      <div class="muted" style="margin-top:8px">Источник: Binance → OKX → Bybit (кэш 10с).</div>
+      <div id="crypto-source" class="muted" style="margin-top:8px">Источник: Binance → OKX → Bybit (кэш 10с).</div>
     </section>
 
     <!-- Crypto: Portfolio -->
     <section class="card">
       <div class="row" style="justify-content:space-between">
-        <h3 class="card__title" style="margin:0">Портфель</h3>
+        <h3 id="card-pf-title" class="card__title" style="margin:0">Портфель</h3>
         <div class="muted" id="pf-total">Итого: $0</div>
       </div>
       <div id="pf-list" class="list"></div>
@@ -130,13 +139,14 @@
     </section>
 
     <footer class="footer muted">
-      <span>© Premium Business</span>
+      <span id="footer-left">© Premium Business</span>
       <span id="user-id" class="muted"></span>
     </footer>
   </div>
 
   <div id="dbg">init…</div>
-  <!-- ВАЖНО: bust кэша -->
-  <script type="module" src="./app.js?v=fix6"></script>
+  <!-- bust cache -->
+  <script type="module" src="./app.js?v=i18n1"></script>
 </body>
 </html>
+
