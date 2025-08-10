@@ -1,5 +1,5 @@
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev';
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // твой Worker
 // =======================
 
 const tg = window.Telegram?.WebApp;
@@ -38,17 +38,28 @@ const escapeHtml = (s='') => String(s)
   .replaceAll('>','&gt;').replaceAll('"','&quot;')
   .replaceAll("'",'&#039;');
 
-function formatMoney(v){ try{ return Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0)); }catch{return `$${v}`;} }
+const formatMoney = (v) => {
+  try { return Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0)); }
+  catch { return `$${v}`; }
+};
 
-async function api(path, opts={}){
+// API с авто-реавторизацией
+async function api(path, opts = {}, retry = true) {
   const init = { method:'GET', headers:{ 'Content-Type':'application/json', ...headers(), ...(opts.headers||{}) }, ...opts };
   const res = await fetch(`${API_URL}${path}`, init);
-  let data = {}; try{ data = await res.json(); }catch{}
-  if(!res.ok) throw data;
+  let data = {}; try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    const needReauth = data && (data.error === 'no_token' || data.error === 'bad_token');
+    if (retry && needReauth) {
+      localStorage.removeItem('pb_token'); TOKEN = '';
+      const ok = await auth();
+      if (ok) return api(path, opts, false);
+    }
+    throw data;
+  }
   return data;
 }
 
-// Desktop fallback: собрать initData из initDataUnsafe
 function buildInitDataFromUnsafe(unsafe){
   if(!unsafe) return '';
   const p = new URLSearchParams();
@@ -76,10 +87,10 @@ async function auth(){
   }
   setStatus('Авторизация…');
   try{
-    const res = await api('/api/auth/telegram', { method:'POST', body: JSON.stringify({ initData }) });
+    const res = await api('/api/auth/telegram', { method:'POST', body: JSON.stringify({ initData }) }, false);
     if(res.ok && res.token){
       TOKEN = res.token; localStorage.setItem('pb_token', TOKEN);
-      setStatus('Готово: авторизация по токену', 'ok');
+      setStatus('Готово: авторизация', 'ok');
       els.userId.textContent = res.user?.id ? `User ID: ${res.user.id}` : '';
       setHelp(''); return true;
     } else { setStatus('Ошибка авторизации', 'err'); setHelp(res.reason || res.error || ''); return false; }
@@ -88,6 +99,7 @@ async function auth(){
     setHelp((e && (e.reason || e.error)) ? JSON.stringify(e) : 'unknown'); return false;
   }
 }
+async function ensureAuth(){ if (TOKEN) return true; return await auth(); }
 
 /* ===== CRM & Tasks ===== */
 function renderClients(list=[]){
@@ -117,19 +129,9 @@ function renderTasks(list=[]){
     : `<div class="muted">Пока пусто — добавьте демо-задачу.</div>`;
 }
 async function loadAll(){
-  try{
-    const [clients, tasks] = await Promise.all([ api('/api/crm/clients'), api('/api/tasks') ]);
-    renderClients(clients); renderTasks(tasks);
-  }catch(e){
-    if(e && (e.error==='no_token' || e.error==='bad_token')){
-      localStorage.removeItem('pb_token'); TOKEN='';
-      setStatus('Сессия истекла — открой через кнопку у бота.', 'err'); return;
-    }
-    console.error(e);
-  }
+  const [clients, tasks] = await Promise.all([ api('/api/crm/clients'), api('/api/tasks') ]);
+  renderClients(clients); renderTasks(tasks);
 }
-async function addDemoClient(){ await api('/api/crm/clients', { method:'POST', body: JSON.stringify({ company:'Acme Corp', stage:'Negotiation', owner:'Мария', amount:24000 }) }); await loadAll(); }
-async function addDemoTask(){ await api('/api/tasks', { method:'POST', body: JSON.stringify({ title:'Позвонить Acme', tag:'sales', due:'Сегодня', status:'inprogress' }) }); await loadAll(); }
 
 /* ===== Crypto: Market ===== */
 let lastMarkets = []; // кэш цен для портфеля
@@ -161,27 +163,17 @@ function renderCrypto(list = []) {
       }).join('')
     : `<div class="muted">Нет данных. Нажмите «Обновить».</div>`;
 
-  // после обновления рынка — перерисуем портфель с новыми ценами
+  // пересчитать портфель после обновления рынка
   loadPortfolio(true);
 }
 async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
-  try{
-    const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
-    const data = await api(q);
-    if (Array.isArray(data)) renderCrypto(data);
-    else throw data;
-  }catch(e){
-    console.error(e);
-    const reason = e?.details ? ` (${(e.details||[]).map(x=>x).join(', ')})` : (e?.error ? ` (${e.error})` : '');
-    els.cryptoList.innerHTML = `<div class="muted">Не удалось загрузить рынок${reason}.</div>`;
-  }
+  const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
+  const data = await api(q);
+  if (Array.isArray(data)) renderCrypto(data);
 }
 
 /* ===== Crypto: Portfolio ===== */
-function priceById(id){
-  const m = lastMarkets.find(x => x.id === id);
-  return m ? Number(m.current_price || 0) : 0;
-}
+function priceById(id){ const m = lastMarkets.find(x => x.id === id); return m ? Number(m.current_price || 0) : 0; }
 function symName(id){
   if (id === 'bitcoin') return {sym:'BTC', name:'Bitcoin'};
   if (id === 'ethereum') return {sym:'ETH', name:'Ethereum'};
@@ -210,7 +202,6 @@ function renderPortfolioList(list){
     : `<div class="muted">Пока пусто — добавьте монету выше.</div>`;
   els.pfTotal.textContent = `Итого: ${formatMoney(total)}`;
 
-  // повесим удаление
   els.pfList.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click', async e=>{
       const id = Number(e.currentTarget.getAttribute('data-del'));
@@ -220,14 +211,9 @@ function renderPortfolioList(list){
   });
 }
 async function loadPortfolio(silent=false){
-  try{
-    const list = await api('/api/crypto/portfolio');
-    renderPortfolioList(Array.isArray(list) ? list : []);
-    if (!silent) setStatus('Портфель обновлён', 'ok');
-  }catch(e){
-    console.error(e);
-    if (!silent) setStatus('Не удалось загрузить портфель', 'err');
-  }
+  const list = await api('/api/crypto/portfolio');
+  renderPortfolioList(Array.isArray(list) ? list : []);
+  if (!silent) setStatus('Портфель обновлён', 'ok');
 }
 async function addPortfolioItem(){
   const coin = els.pfCoin.value;
@@ -237,6 +223,17 @@ async function addPortfolioItem(){
   els.pfAmount.value = '';
   await loadPortfolio(true);
 }
+
+/* ===== Авто-обновление цен (10с) ===== */
+let cryptoTimer = null;
+function startAutoCrypto(periodMs = 10000){
+  stopAutoCrypto();
+  cryptoTimer = setInterval(() => { loadCrypto(); }, periodMs);
+}
+function stopAutoCrypto(){ if (cryptoTimer){ clearInterval(cryptoTimer); cryptoTimer = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopAutoCrypto(); else startAutoCrypto(10000);
+});
 
 /* ===== Wire & Boot ===== */
 function wire(){
@@ -255,26 +252,21 @@ async function boot(){
     if(tg){
       tg.ready(); tg.setBackgroundColor?.('#0f1115'); tg.setHeaderColor?.('#171a21');
       tg.expand?.(); tg.disableVerticalSwipes?.();
-      if (tg.platform === 'tdesktop') {
-        const r = document.documentElement.style;
-        r.setProperty('--bg','#0f1115'); r.setProperty('--card','#171a21'); r.setProperty('--text','#e8ecf1');
-        r.setProperty('--muted','#99a2b1'); r.setProperty('--accent','#3b82f6'); r.setProperty('--accent-text','#fff'); r.setProperty('--border','rgba(255,255,255,.12)');
-      }
-      dbg(`tg OK • v:${tg.version || '?'} • ${tg.platform || 'platform?'} • initData:${tg.initData?.length || 0}`);
-    } else { dbg('tg = undefined (SDK не подхватился)'); }
+      dbg(`tg OK • v:${tg.version||'?'} • ${tg.platform||'platform?'} • initData:${tg.initData?.length||0}`);
+    }
   }catch(e){ dbg('tg error: ' + String(e)); }
 
   wire();
 
-  if(TOKEN){
-    setStatus('Проверка сессии…');
-    try{ await loadAll(); await loadCrypto(); await loadPortfolio(true); setStatus('Готово: авторизация по токену', 'ok'); return; }
-    catch{ localStorage.removeItem('pb_token'); TOKEN=''; }
-  }
+  const ok = await ensureAuth();
+  if (!ok) { setStatus('Авторизация не выполнена', 'err'); return; }
 
-  const ok = await auth();
-  if(ok){ await loadAll(); await loadCrypto(); await loadPortfolio(true); }
+  setStatus('Загрузка…');
+  await loadAll();
+  await loadCrypto();       // первая загрузка цен
+  await loadPortfolio(true);
+  startAutoCrypto(10000);   // авто-обновление каждые 10 сек
+  setStatus('Готово', 'ok');
 }
 
 boot();
-
