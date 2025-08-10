@@ -1,30 +1,32 @@
 // ====== НАСТРОЙКА ======
-const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev'; // твой Worker
+const API_URL = 'https://tg-premium-worker.m-kir258.workers.dev';
 // =======================
 
 const tg = window.Telegram?.WebApp;
 
 // helpers
-const byId = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 const els = {
-  status: byId('status'),
-  statusHelp: byId('status-help'),
-  userId: byId('user-id'),
-  clients: byId('clients-list'),
-  tasks: byId('tasks-list'),
-  addClient: byId('add-demo-client'),
-  addTask: byId('add-demo-task'),
+  status: $('status'),
+  statusHelp: $('status-help'),
+  userId: $('user-id'),
 
-  cryptoList: byId('crypto-list'),
-  cryptoRefresh: byId('refresh-crypto'),
+  // CRM
+  cCompany: $('c-company'), cStage: $('c-stage'), cOwner: $('c-owner'), cAmount: $('c-amount'), cAdd: $('c-add'),
+  clients: $('clients-list'),
 
-  pfList: byId('pf-list'),
-  pfCoin: byId('pf-coin'),
-  pfAmount: byId('pf-amount'),
-  pfAdd: byId('pf-add'),
-  pfTotal: byId('pf-total'),
+  // Tasks
+  tTitle: $('t-title'), tTag: $('t-tag'), tDue: $('t-due'), tStatus: $('t-status'), tAdd: $('t-add'),
+  tasks: $('tasks-list'),
+
+  // Crypto
+  cryptoList: $('crypto-list'),
+  cryptoRefresh: $('refresh-crypto'),
+
+  // Portfolio
+  pfList: $('pf-list'), pfCoin: $('pf-coin'), pfAmount: $('pf-amount'), pfAdd: $('pf-add'), pfTotal: $('pf-total'),
 };
-const dbgBox = byId('dbg');
+const dbgBox = $('dbg');
 const dbg = (m) => { if (dbgBox) dbgBox.textContent = String(m); console.log('[DBG]', m); };
 
 let TOKEN = localStorage.getItem('pb_token') || '';
@@ -38,7 +40,7 @@ const escapeHtml = (s='') => String(s)
   .replaceAll('>','&gt;').replaceAll('"','&quot;')
   .replaceAll("'",'&#039;');
 
-const formatMoney = (v) => {
+const fmtMoney = (v) => {
   try { return Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(v||0)); }
   catch { return `$${v}`; }
 };
@@ -60,13 +62,14 @@ async function api(path, opts = {}, retry = true) {
   return data;
 }
 
+// Desktop fallback
 function buildInitDataFromUnsafe(unsafe){
   if(!unsafe) return '';
   const p = new URLSearchParams();
-  if(unsafe.query_id)    p.set('query_id', unsafe.query_id);
-  if(unsafe.user)        p.set('user', JSON.stringify(unsafe.user));
-  if(unsafe.auth_date)   p.set('auth_date', String(unsafe.auth_date));
-  if(unsafe.hash)        p.set('hash', unsafe.hash);
+  if(unsafe.query_id) p.set('query_id', unsafe.query_id);
+  if(unsafe.user) p.set('user', JSON.stringify(unsafe.user));
+  if(unsafe.auth_date) p.set('auth_date', String(unsafe.auth_date));
+  if(unsafe.hash) p.set('hash', unsafe.hash);
   if(unsafe.start_param) p.set('start_param', unsafe.start_param);
   return p.toString();
 }
@@ -101,41 +104,98 @@ async function auth(){
 }
 async function ensureAuth(){ if (TOKEN) return true; return await auth(); }
 
-/* ===== CRM & Tasks ===== */
+/* ===== CRM ===== */
 function renderClients(list=[]){
   els.clients.innerHTML = list.length
     ? list.map(c => `
-      <div class="item">
-        <div class="item__title">${escapeHtml(c.company || c.title || 'Компания')}</div>
+      <div class="item" data-id="${c.id}">
+        <div class="item__title">${escapeHtml(c.company || 'Компания')}</div>
         <div class="item__row">
-          <span>Этап: ${escapeHtml(c.stage || 'Negotiation')}</span>
-          <span>Менеджер: ${escapeHtml(c.owner || '—')}</span>
-          <span>Сумма: ${formatMoney(c.amount || 0)}</span>
+          <span>Этап: <b>${escapeHtml(c.stage || 'Negotiation')}</b></span>
+          <span>Менеджер: <b>${escapeHtml(c.owner || '—')}</b></span>
+          <span>Сумма: <b>${fmtMoney(c.amount || 0)}</b></span>
+        </div>
+        <div class="actions">
+          <button class="btn-sm" data-edit="${c.id}">Ред.</button>
+          <button class="btn-del" data-del="${c.id}">Удалить</button>
         </div>
       </div>`).join('')
-    : `<div class="muted">Пока пусто — добавьте демо-сделку.</div>`;
+    : `<div class="muted">Пока пусто — добавьте сделку через форму выше.</div>`;
 }
+async function loadClients(){ const list = await api('/api/crm/clients'); renderClients(list); }
+async function addClient(){
+  const body = {
+    company: els.cCompany.value.trim(),
+    stage: els.cStage.value.trim(),
+    owner: els.cOwner.value.trim(),
+    amount: Number(els.cAmount.value || 0),
+  };
+  if (!body.company) return;
+  await api('/api/crm/clients', { method:'POST', body: JSON.stringify(body) });
+  els.cCompany.value = ''; els.cOwner.value=''; els.cAmount.value='';
+  await loadClients();
+}
+async function editClient(id, current){
+  const company = prompt('Компания:', current.company || '') ?? current.company;
+  const stage = prompt('Этап (Lead/Qualification/Negotiation/Won/Lost):', current.stage || 'Negotiation') ?? current.stage;
+  const owner = prompt('Менеджер:', current.owner || '') ?? current.owner;
+  const amount = Number(prompt('Сумма, $:', current.amount || 0) ?? current.amount);
+  await api(`/api/crm/clients/${id}`, { method:'PUT', body: JSON.stringify({ company, stage, owner, amount }) });
+  await loadClients();
+}
+async function deleteClient(id){
+  if (!confirm('Удалить сделку?')) return;
+  await api(`/api/crm/clients/${id}`, { method:'DELETE' });
+  await loadClients();
+}
+
+/* ===== Tasks ===== */
 function renderTasks(list=[]){
   els.tasks.innerHTML = list.length
     ? list.map(t => `
-      <div class="item">
+      <div class="item" data-id="${t.id}">
         <div class="item__title">${escapeHtml(t.title || 'Задача')}</div>
         <div class="item__row">
-          <span>Тег: ${escapeHtml(t.tag || 'sales')}</span>
-          <span>Срок: ${escapeHtml(t.due || 'Сегодня')}</span>
-          <span>Статус: ${escapeHtml(t.status || 'inprogress')}</span>
+          <span>Тег: <b>${escapeHtml(t.tag || 'sales')}</b></span>
+          <span>Срок: <b>${escapeHtml(t.due || '—')}</b></span>
+          <span>Статус: <b>${escapeHtml(t.status || 'todo')}</b></span>
+        </div>
+        <div class="actions">
+          <button class="btn-sm" data-edit="${t.id}" data-type="task">Ред.</button>
+          <button class="btn-del" data-del="${t.id}" data-type="task">Удалить</button>
         </div>
       </div>`).join('')
-    : `<div class="muted">Пока пусто — добавьте демо-задачу.</div>`;
+    : `<div class="muted">Пока пусто — добавьте задачу через форму выше.</div>`;
 }
-async function loadAll(){
-  const [clients, tasks] = await Promise.all([ api('/api/crm/clients'), api('/api/tasks') ]);
-  renderClients(clients); renderTasks(tasks);
+async function loadTasks(){ const list = await api('/api/tasks'); renderTasks(list); }
+async function addTask(){
+  const body = {
+    title: els.tTitle.value.trim(),
+    tag: els.tTag.value.trim() || 'general',
+    due: els.tDue.value || 'Сегодня',
+    status: els.tStatus.value || 'todo',
+  };
+  if (!body.title) return;
+  await api('/api/tasks', { method:'POST', body: JSON.stringify(body) });
+  els.tTitle.value=''; els.tTag.value=''; els.tDue.value='';
+  await loadTasks();
+}
+async function editTask(id, current){
+  const title = prompt('Название задачи:', current.title || '') ?? current.title;
+  const tag = prompt('Тег:', current.tag || 'general') ?? current.tag;
+  const due = prompt('Срок (YYYY-MM-DD или текст):', current.due || '') ?? current.due;
+  const status = prompt('Статус (todo/inprogress/done):', current.status || 'todo') ?? current.status;
+  await api(`/api/tasks/${id}`, { method:'PUT', body: JSON.stringify({ title, tag, due, status }) });
+  await loadTasks();
+}
+async function deleteTask(id){
+  if (!confirm('Удалить задачу?')) return;
+  await api(`/api/tasks/${id}`, { method:'DELETE' });
+  await loadTasks();
 }
 
 /* ===== Crypto: Market ===== */
-let lastMarkets = []; // кэш цен для портфеля
-
+let lastMarkets = [];
 function renderCrypto(list = []) {
   lastMarkets = Array.isArray(list) ? list : [];
   els.cryptoList.innerHTML = list.length
@@ -144,9 +204,8 @@ function renderCrypto(list = []) {
         const pct = Number(c.price_change_percentage_24h || 0);
         const cls = pct >= 0 ? 'chg-up' : 'chg-down';
         const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-        const icon = c.image
-          ? `<img src="${c.image}" alt="${escapeHtml(sym)}"/>`
-          : `<span class="avatar" data-sym="${escapeHtml(sym)}">${escapeHtml(sym[0] || '?')}</span>`;
+        const icon = c.image ? `<img src="${c.image}" alt="${escapeHtml(sym)}"/>`
+                             : `<span class="avatar" data-sym="${escapeHtml(sym)}">${escapeHtml(sym[0]||'?')}</span>`;
         const mc = Number(c.market_cap || 0);
         return `
           <div class="item">
@@ -155,16 +214,14 @@ function renderCrypto(list = []) {
               <div class="item__title">${escapeHtml(c.name || sym)} <span class="muted">(${escapeHtml(sym)})</span></div>
             </div>
             <div class="item__row">
-              <span class="pill">${formatMoney(c.current_price)}</span>
+              <span class="pill">${fmtMoney(c.current_price)}</span>
               <span class="pill ${cls}">${pctStr}</span>
               ${mc > 0 ? `<span class="muted">MC Cap: ${Intl.NumberFormat('en-US',{notation:'compact'}).format(mc)}</span>` : ``}
             </div>
           </div>`;
       }).join('')
     : `<div class="muted">Нет данных. Нажмите «Обновить».</div>`;
-
-  // пересчитать портфель после обновления рынка
-  loadPortfolio(true);
+  loadPortfolio(true); // пересчитать портфель
 }
 async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
   const q = `/api/crypto/markets?ids=${encodeURIComponent(ids.join(','))}&vs=${encodeURIComponent(vs)}`;
@@ -172,39 +229,32 @@ async function loadCrypto(ids=['bitcoin','ethereum','toncoin'], vs='usd'){
   if (Array.isArray(data)) renderCrypto(data);
 }
 
-/* ===== Crypto: Portfolio ===== */
+/* ===== Portfolio ===== */
 function priceById(id){ const m = lastMarkets.find(x => x.id === id); return m ? Number(m.current_price || 0) : 0; }
-function symName(id){
-  if (id === 'bitcoin') return {sym:'BTC', name:'Bitcoin'};
-  if (id === 'ethereum') return {sym:'ETH', name:'Ethereum'};
-  if (id === 'toncoin') return {sym:'TON', name:'Toncoin'};
-  return {sym:id.slice(0,3).toUpperCase(), name:id};
-}
-function renderPortfolioList(list){
+function symName(id){ if(id==='bitcoin')return{sym:'BTC',name:'Bitcoin'}; if(id==='ethereum')return{sym:'ETH',name:'Ethereum'}; if(id==='toncoin')return{sym:'TON',name:'Toncoin'}; return{sym:id.slice(0,3).toUpperCase(),name:id}; }
+function renderPortfolio(list){
   let total = 0;
   els.pfList.innerHTML = list.length
     ? list.map(r => {
-        const {sym, name} = symName(r.coin);
-        const price = priceById(r.coin);
-        const value = Number(r.amount || 0) * price;
-        total += value;
+        const {sym,name} = symName(r.coin);
+        const p = priceById(r.coin); const value = Number(r.amount||0) * p; total += value;
         return `
           <div class="item">
             <div class="item__title">${name} <span class="muted">(${sym})</span></div>
             <div class="item__row">
               <span>Кол-во: <b>${r.amount}</b></span>
-              <span class="pill">${formatMoney(price)} / ${sym}</span>
-              <span class="pill">${formatMoney(value)}</span>
-              <button class="btn-del right" data-del="${r.id}">Удалить</button>
+              <span class="pill">${fmtMoney(p)} / ${sym}</span>
+              <span class="pill">${fmtMoney(value)}</span>
+              <button class="btn-del right" data-pf-del="${r.id}">Удалить</button>
             </div>
           </div>`;
       }).join('')
     : `<div class="muted">Пока пусто — добавьте монету выше.</div>`;
-  els.pfTotal.textContent = `Итого: ${formatMoney(total)}`;
-
-  els.pfList.querySelectorAll('[data-del]').forEach(btn=>{
-    btn.addEventListener('click', async e=>{
-      const id = Number(e.currentTarget.getAttribute('data-del'));
+  els.pfTotal.textContent = `Итого: ${fmtMoney(total)}`;
+  // кнопки удаления
+  els.pfList.querySelectorAll('[data-pf-del]').forEach(b=>{
+    b.addEventListener('click', async e=>{
+      const id = Number(e.currentTarget.getAttribute('data-pf-del'));
       await api(`/api/crypto/portfolio/${id}`, { method:'DELETE' });
       await loadPortfolio(true);
     });
@@ -212,7 +262,7 @@ function renderPortfolioList(list){
 }
 async function loadPortfolio(silent=false){
   const list = await api('/api/crypto/portfolio');
-  renderPortfolioList(Array.isArray(list) ? list : []);
+  renderPortfolio(Array.isArray(list) ? list : []);
   if (!silent) setStatus('Портфель обновлён', 'ok');
 }
 async function addPortfolioItem(){
@@ -224,27 +274,59 @@ async function addPortfolioItem(){
   await loadPortfolio(true);
 }
 
-/* ===== Авто-обновление цен (10с) ===== */
+/* ===== Автообновление цен (10с) ===== */
 let cryptoTimer = null;
-function startAutoCrypto(periodMs = 10000){
-  stopAutoCrypto();
-  cryptoTimer = setInterval(() => { loadCrypto(); }, periodMs);
-}
-function stopAutoCrypto(){ if (cryptoTimer){ clearInterval(cryptoTimer); cryptoTimer = null; } }
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopAutoCrypto(); else startAutoCrypto(10000);
-});
+function startAutoCrypto(periodMs = 10000){ stopAutoCrypto(); cryptoTimer = setInterval(()=>loadCrypto(), periodMs); }
+function stopAutoCrypto(){ if (cryptoTimer){ clearInterval(cryptoTimer); cryptoTimer=null; } }
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden) stopAutoCrypto(); else startAutoCrypto(10000); });
 
-/* ===== Wire & Boot ===== */
+/* ===== wire & boot ===== */
 function wire(){
-  els.addClient?.addEventListener('click', addDemoClient);
-  els.addTask?.addEventListener('click', addDemoTask);
-  els.cryptoRefresh?.addEventListener('click', async () => {
-    els.cryptoRefresh.disabled = true;
-    await loadCrypto();
-    setTimeout(() => { els.cryptoRefresh.disabled = false; }, 3000);
+  // CRM
+  els.cAdd.addEventListener('click', addClient);
+  els.clients.addEventListener('click', async (e)=>{
+    const delId = e.target.getAttribute('data-del');
+    const editId = e.target.getAttribute('data-edit');
+    if (delId) return deleteClient(Number(delId));
+    if (editId) {
+      // найдём текущее значение из DOM (или перезагрузим список и спросим)
+      const node = e.target.closest('.item');
+      const current = {
+        company: node.querySelector('.item__title')?.textContent.trim(),
+        stage: node.querySelector('.item__row span:nth-child(1) b')?.textContent.trim(),
+        owner: node.querySelector('.item__row span:nth-child(2) b')?.textContent.trim(),
+        amount: (node.querySelector('.item__row span:nth-child(3) b')?.textContent.replace(/[^\d.]/g,'') || 0)
+      };
+      return editClient(Number(editId), current);
+    }
   });
-  els.pfAdd?.addEventListener('click', addPortfolioItem);
+
+  // Tasks
+  els.tAdd.addEventListener('click', addTask);
+  els.tasks.addEventListener('click', async (e)=>{
+    const delId = e.target.getAttribute('data-del');
+    const editId = e.target.getAttribute('data-edit');
+    const isTask = e.target.getAttribute('data-type') === 'task';
+    if (delId && isTask) return deleteTask(Number(delId));
+    if (editId && isTask) {
+      const node = e.target.closest('.item');
+      const current = {
+        title: node.querySelector('.item__title')?.textContent.trim(),
+        tag: node.querySelector('.item__row span:nth-child(1) b')?.textContent.trim(),
+        due: node.querySelector('.item__row span:nth-child(2) b')?.textContent.trim(),
+        status: node.querySelector('.item__row span:nth-child(3) b')?.textContent.trim(),
+      };
+      return editTask(Number(editId), current);
+    }
+  });
+
+  // Crypto
+  els.cryptoRefresh.addEventListener('click', async ()=>{
+    els.cryptoRefresh.disabled = true; await loadCrypto(); setTimeout(()=>{ els.cryptoRefresh.disabled=false; }, 3000);
+  });
+
+  // Portfolio
+  els.pfAdd.addEventListener('click', addPortfolioItem);
 }
 
 async function boot(){
@@ -262,10 +344,10 @@ async function boot(){
   if (!ok) { setStatus('Авторизация не выполнена', 'err'); return; }
 
   setStatus('Загрузка…');
-  await loadAll();
-  await loadCrypto();       // первая загрузка цен
+  await Promise.all([ loadClients(), loadTasks() ]);
+  await loadCrypto();
   await loadPortfolio(true);
-  startAutoCrypto(10000);   // авто-обновление каждые 10 сек
+  startAutoCrypto(10000);
   setStatus('Готово', 'ok');
 }
 
